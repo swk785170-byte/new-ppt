@@ -8,11 +8,15 @@
     "assets": "node scripts/generate-assets.mjs",
     "pptx": "node scripts/build-pptx.mjs",
     "transitions": "node scripts/inject-transitions.mjs",
-    "build": "npm run assets && npm run pptx && npm run transitions"
+    "build": "npm run assets && npm run pptx && npm run transitions",
+    "qa:html": "node scripts/shoot.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",
     "pptxgenjs": "^3.12.0",
     "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "puppeteer": "^23.11.1"
   }
 }

@@ -168,10 +168,11 @@
 
   /* judging bars */
   .judge{display:flex; flex-direction:column; gap:min(2.2vh,20px); max-width:1100px;}
-  .jrow{display:grid; grid-template-columns:2.2ch 1fr; column-gap:min(2.4vw,30px);
+  .jrow{display:grid; grid-template-columns:clamp(58px,6.4vw,94px) 1fr; column-gap:min(2.4vw,30px);
     align-items:center;}
   .jrow .pct{font-family:var(--sans); font-weight:900; color:var(--holo);
-    text-shadow:var(--holoGlow); font-size:clamp(26px,3.2vw,40px); width:3.4ch;}
+    text-shadow:var(--holoGlow); font-size:clamp(26px,3.2vw,40px); line-height:1;
+    white-space:nowrap;}
   .jrow .info{display:flex; flex-direction:column; gap:.35em; grid-column:2;}
   .jrow .info .rowtop{display:flex; justify-content:space-between; align-items:baseline; gap:1em;}
   .jrow .info h3{font-family:var(--sans); font-weight:700; color:var(--text);
@@ -233,6 +234,34 @@
   .rise{opacity:0; transform:translateY(16px);}
   .slide.active .rise{animation:rise .7s var(--ease) forwards;}
   @keyframes rise{to{opacity:1; transform:none;}}
+
+  /* ---- hero glider flight (build / launch / impact) ------------------- */
+  /* The glider sits in an outer <g transform="translate(endX,endY)"> and the
+     inner .glide* animates the flight-in offset + bank, pivoting on its own
+     centre (transform-box:fill-box) so the plane reads as flying along the arc. */
+  .glideL,.glideI{opacity:0; transform-box:fill-box; transform-origin:center;}
+  .slide.active .glideL{animation:glideL 2.2s var(--ease) .9s forwards;}
+  @keyframes glideL{
+    0%  {opacity:0; transform:translate(-102px,20px) rotate(-24deg) scale(.5);}
+    16% {opacity:1; transform:translate(-102px,20px) rotate(-24deg) scale(1);}
+    60% {transform:translate(-51px,-4px) rotate(-16deg);}
+    100%{opacity:1; transform:translate(0,0) rotate(-6deg);}
+  }
+  .slide.active .glideI{animation:glideI 1.5s var(--ease) .5s forwards;}
+  @keyframes glideI{
+    0%  {opacity:0; transform:translate(-204px,-18px) rotate(-50deg) scale(.7);}
+    12% {opacity:1; transform:translate(-204px,-18px) rotate(-50deg) scale(1);}
+    55% {transform:translate(-105px,-80px) rotate(8deg);}
+    88% {transform:translate(-28px,-18px) rotate(40deg);}
+    100%{opacity:1; transform:translate(0,0) rotate(54deg) scale(.92);}
+  }
+  /* amber shock-ripple when the glider strikes the zone */
+  .ripple{opacity:0; transform-box:fill-box; transform-origin:center;}
+  .slide.active .ripple{animation:ripple 1.25s ease-out 1.9s infinite;}
+  @keyframes ripple{
+    0%  {opacity:.85; transform:scale(.35);}
+    100%{opacity:0;   transform:scale(6);}
+  }
 
   /* ---- navigation ------------------------------------------------------ */
   #nav{position:fixed; z-index:70; bottom:min(3.2vh,26px); left:50%;
@@ -402,6 +431,15 @@ function figure(pose){
   </svg>`;
 }
 
+// A clean glider silhouette centred at the origin, nose pointing +x.
+// Rendered inside a 0..300 stage viewBox; position/rotate via a parent <g>.
+function gliderSVG(fill,stroke,core){
+  return `<path d="M24 0 L-16 -12 L-5 0 L-16 12 Z" fill="${fill}" fill-opacity=".22"
+      stroke="${stroke}" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M24 0 L-5 0" stroke="${stroke}" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="21" cy="0" r="3.6" fill="${core}"/>`;
+}
+
 /* ============================================================================
    SLIDE TEMPLATES
    ========================================================================== */
@@ -472,78 +510,76 @@ function heroShell(seq,stageSVG,i){
   </div>${footer(i)}`;
 }
 
-// 4 — BUILD stage: figure + glider airframe drawing itself together
+// 4 — BUILD stage: figure + glider airframe drawing itself together (0..300 space)
 function stageBuild(){
   return `${figure("build")}
-  <svg aria-hidden="true">
+  <svg viewBox="0 0 300 300" aria-hidden="true">
     <defs><filter id="gb" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge>
       <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     <!-- workbench line -->
-    <line x1="6%" y1="82%" x2="94%" y2="82%" stroke="var(--grid)" stroke-width="2"
-      class="draw" style="--len:400"/>
-    <!-- glider airframe assembling above the hands (~center) -->
-    <g filter="url(#gb)" transform="translate(0,0)">
+    <line x1="18" y1="250" x2="282" y2="250" stroke="var(--grid)" stroke-width="2"
+      class="draw" style="--len:280"/>
+    <!-- assembly reticle sweeping the airframe -->
+    <rect x="98" y="112" width="104" height="58" rx="4" fill="none" stroke="var(--electron)"
+      stroke-width="1.4" stroke-dasharray="6 8" class="fadein" style="animation-delay:1.8s; opacity:.5"/>
+    <!-- glider airframe assembling in the hands (centre ~150,140) -->
+    <g filter="url(#gb)" transform="translate(150,140)">
       <!-- fuselage -->
-      <line x1="34%" y1="52%" x2="66%" y2="52%" stroke="var(--holoLt)" stroke-width="4"
-        stroke-linecap="round" class="draw" style="--len:260; animation-delay:.6s"/>
+      <line x1="-42" y1="0" x2="42" y2="0" stroke="var(--holoLt)" stroke-width="4"
+        stroke-linecap="round" class="draw" style="--len:100; animation-delay:.6s"/>
       <!-- main wing -->
-      <path d="M38% 47% L62% 47% L58% 52% L42% 52% Z" fill="var(--holo)" fill-opacity=".14"
+      <path d="M-28 -18 L28 -18 L18 0 L-18 0 Z" fill="var(--holo)" fill-opacity=".14"
         stroke="var(--holo)" stroke-width="2.6" stroke-linejoin="round"
-        class="draw fadein" style="--len:300; animation-delay:.9s"/>
+        class="draw fadein" style="--len:170; animation-delay:.9s"/>
       <!-- tailplane -->
-      <path d="M33% 50% L38% 48.5% L38% 55.5% L33% 54% Z" fill="var(--holo)" fill-opacity=".14"
-        stroke="var(--holo)" stroke-width="2.4" class="draw fadein" style="--len:140; animation-delay:1.25s"/>
+      <path d="M-42 -8 L-28 -12 L-28 8 L-42 4 Z" fill="var(--holo)" fill-opacity=".14"
+        stroke="var(--holo)" stroke-width="2.4" class="draw fadein" style="--len:90; animation-delay:1.25s"/>
       <!-- nose payload capsule -->
-      <circle cx="66%" cy="52%" r="8" fill="var(--amber)" fill-opacity=".2"
+      <circle cx="42" cy="0" r="8" fill="var(--amber)" fill-opacity=".2"
         stroke="var(--amber)" stroke-width="2.4" class="popin" style="animation-delay:1.5s"/>
       <!-- rivet / lock-in ticks -->
-      ${[42,50,58].map((x,k)=>`<circle cx="${x}%" cy="52%" r="2.4" fill="var(--holoHot)"
+      ${[-18,0,18].map((x,k)=>`<circle cx="${x}" cy="0" r="2.6" fill="var(--holoHot)"
         class="popin" style="animation-delay:${1.6+k*.12}s"/>`).join("")}
     </g>
-    <!-- assembly reticle sweeping the airframe -->
-    <rect x="33%" y="44%" width="35%" height="14%" fill="none" stroke="var(--electron)"
-      stroke-width="1.4" stroke-dasharray="6 8" class="fadein" style="animation-delay:1.8s; opacity:.5"/>
   </svg>`;
 }
 
-// 5 — LAUNCH stage: figure cocked, glider releasing up an arc
+// 5 — LAUNCH stage: figure cocked, glider releasing up the arc (0..300 space)
 function stageLaunch(){
   return `${figure("launch")}
-  <svg aria-hidden="true">
+  <svg viewBox="0 0 300 300" aria-hidden="true">
     <defs><filter id="gl" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2.6" result="b"/><feMerge>
       <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       <marker id="ah" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
         <path d="M0 0 L9 4.5 L0 9 Z" fill="var(--holo)"/></marker></defs>
     <!-- deploy line -->
-    <line x1="20%" y1="86%" x2="20%" y2="70%" stroke="var(--holo)" stroke-width="2.2"
-      class="draw" style="--len:80"/>
-    <text x="20%" y="92%" fill="var(--textFaint)" font-family="var(--mono)" font-size="11"
+    <line x1="60" y1="258" x2="60" y2="210" stroke="var(--holo)" stroke-width="2.2"
+      class="draw" style="--len:60"/>
+    <text x="60" y="276" fill="var(--textFaint)" font-family="var(--mono)" font-size="11"
       text-anchor="middle" class="fadein" style="animation-delay:1s">DEPLOY LINE</text>
-    <!-- launch trajectory arc -->
-    <path id="arcL" d="M62% 16% Q86% 30% 96% 66%" fill="none" stroke="var(--holo)"
+    <!-- launch trajectory arc (release -> skyward) -->
+    <path id="arcL" d="M196 46 Q248 8 298 26" fill="none" stroke="var(--holo)"
       stroke-width="2.4" stroke-dasharray="2 9" marker-end="url(#ah)" filter="url(#gl)"
-      class="draw" style="--len:420; animation-delay:.7s; opacity:.85"/>
-    <!-- release burst near the throwing hand (upper right of figure) -->
-    <g filter="url(#gl)">
-      <circle cx="62%" cy="16%" r="9" fill="none" stroke="var(--holoLt)" stroke-width="2.5"
-        class="popin" style="animation-delay:1.1s"/>
-      <!-- the glider, releasing, angled up -->
-      <g class="glideL"><path d="M-16 0 L16 0 L10 6 L-10 6 Z" fill="var(--holo)" fill-opacity=".2"
-        stroke="var(--holoLt)" stroke-width="2.6" stroke-linejoin="round"
-        transform="rotate(-28)"/><circle cx="14" cy="1" r="4" fill="var(--amber)"/></g>
+      class="draw" style="--len:220; animation-delay:.7s; opacity:.85"/>
+    <!-- release burst near the throwing hand -->
+    <circle cx="196" cy="46" r="9" fill="none" stroke="var(--holoLt)" stroke-width="2.5"
+      filter="url(#gl)" class="popin" style="animation-delay:1s"/>
+    <!-- the glider, released, flying up the arc (ends at arc tip 298,26) -->
+    <g transform="translate(298,26)" filter="url(#gl)">
+      <g class="glideL">${gliderSVG("var(--holo)","var(--holoLt)","var(--amber)")}</g>
     </g>
     <!-- wind ticks -->
-    ${[30,40,50].map((y,k)=>`<line x1="8%" y1="${y}%" x2="15%" y2="${y-2}%" stroke="var(--electron)"
+    ${[96,126,156].map((y,k)=>`<line x1="24" y1="${y}" x2="46" y2="${y-6}" stroke="var(--electron)"
       stroke-width="1.6" stroke-opacity=".5" class="fadein" style="animation-delay:${1.2+k*.15}s"/>`).join("")}
   </svg>`;
 }
 
-// 6 — IMPACT stage: arc completes into target, rings light, amber ripple
+// 6 — IMPACT stage: arc completes into target, rings light, amber ripple (0..300 space)
 function stageImpact(){
   return `${figure("follow")}
-  <svg aria-hidden="true">
+  <svg viewBox="0 0 300 300" aria-hidden="true">
     <defs><filter id="gi" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="2.8" result="b"/><feMerge>
       <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -551,31 +587,31 @@ function stageImpact(){
         <stop offset="0%" stop-color="var(--amberLt)" stop-opacity=".9"/>
         <stop offset="60%" stop-color="var(--amber)" stop-opacity=".25"/>
         <stop offset="100%" stop-color="var(--amber)" stop-opacity="0"/></radialGradient></defs>
-    <!-- flight arc to the zone -->
-    <path d="M8% 40% Q46% 6% 78% 60%" fill="none" stroke="var(--holo)" stroke-width="2.4"
-      stroke-dasharray="2 9" filter="url(#gi)" class="draw" style="--len:520; opacity:.8"/>
+    <!-- flight arc into the zone (ends at target centre 228,168) -->
+    <path d="M24 150 Q120 18 228 168" fill="none" stroke="var(--holo)" stroke-width="2.4"
+      stroke-dasharray="2 9" filter="url(#gi)" class="draw" style="--len:380; opacity:.8"/>
     <!-- target: concentric rings, right side, lighting up in sequence -->
-    <g filter="url(#gi)" transform="translate(78%,60%)">
-      <circle r="62" fill="url(#hit)" class="fadein" style="animation-delay:1.15s"/>
-      ${[58,44,30,16].map((r,k)=>`<circle r="${r}" fill="none"
+    <g filter="url(#gi)" transform="translate(228,168)">
+      <circle r="60" fill="url(#hit)" class="fadein" style="animation-delay:1.15s"/>
+      ${[56,42,28,15].map((r,k)=>`<circle r="${r}" fill="none"
         stroke="${k%2?"var(--amber)":"var(--holo)"}" stroke-width="2.6"
         class="popin" style="animation-delay:${.5+k*.14}s"/>`).join("")}
       <circle r="6" fill="var(--amberLt)" class="popin" style="animation-delay:1.05s"/>
       <!-- crosshairs -->
-      <line x1="-72" y1="0" x2="-64" y2="0" stroke="var(--holo)" stroke-width="2"/>
-      <line x1="64" y1="0" x2="72" y2="0" stroke="var(--holo)" stroke-width="2"/>
-      <line x1="0" y1="-72" x2="0" y2="-64" stroke="var(--holo)" stroke-width="2"/>
-      <line x1="0" y1="64" x2="0" y2="72" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="-70" y1="0" x2="-62" y2="0" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="62" y1="0" x2="70" y2="0" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="0" y1="-70" x2="0" y2="-62" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="0" y1="62" x2="0" y2="70" stroke="var(--holo)" stroke-width="2"/>
       <!-- shock ripple on contact -->
       <circle class="ripple" r="10" fill="none" stroke="var(--amberLt)" stroke-width="3"/>
-      <!-- glider striking, nose-down -->
-      <g class="glideI"><path d="M-15 0 L15 0 L9 6 L-9 6 Z" fill="var(--amber)" fill-opacity=".25"
-        stroke="var(--amberLt)" stroke-width="2.6" stroke-linejoin="round" transform="rotate(24)"/>
-        <circle cx="12" cy="4" r="4" fill="var(--amberLt)"/></g>
     </g>
-    <text x="78%" y="86%" fill="var(--amber)" font-family="var(--mono)" font-size="12"
+    <!-- glider striking, flying along the arc into the bullseye (ends at 228,168) -->
+    <g transform="translate(228,168)" filter="url(#gi)">
+      <g class="glideI">${gliderSVG("var(--amber)","var(--amberLt)","var(--amberLt)")}</g>
+    </g>
+    <text x="228" y="252" fill="var(--amber)" font-family="var(--mono)" font-size="12"
       font-weight="700" text-anchor="middle" letter-spacing="2" class="fadein"
-      style="animation-delay:1.4s">RESCUE ZONE ● SECURED</text>
+      style="animation-delay:1.55s">RESCUE ZONE ● SECURED</text>
   </svg>`;
 }
 
