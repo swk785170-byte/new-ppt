@@ -1,0 +1,18 @@
+{
+  "name": "rescue-glider-deck",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Holographic rescue-mission glider engineering competition deck (PPTX + interactive HTML)",
+  "scripts": {
+    "assets": "node scripts/generate-assets.mjs",
+    "pptx": "node scripts/build-pptx.mjs",
+    "transitions": "node scripts/inject-transitions.mjs",
+    "build": "npm run assets && npm run pptx && npm run transitions"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pptxgenjs": "^3.12.0",
+    "sharp": "^0.33.5"
+  }
+}
