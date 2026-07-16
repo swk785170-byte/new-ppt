@@ -168,11 +168,11 @@
 
   /* judging bars */
   .judge{display:flex; flex-direction:column; gap:min(2.2vh,20px); max-width:1100px;}
-  .jrow{display:grid; grid-template-columns:clamp(58px,6.4vw,94px) 1fr; column-gap:min(2.4vw,30px);
+  .jrow{display:grid; grid-template-columns:max-content 1fr; column-gap:min(2.6vw,32px);
     align-items:center;}
   .jrow .pct{font-family:var(--sans); font-weight:900; color:var(--holo);
     text-shadow:var(--holoGlow); font-size:clamp(26px,3.2vw,40px); line-height:1;
-    white-space:nowrap;}
+    white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums;}
   .jrow .info{display:flex; flex-direction:column; gap:.35em; grid-column:2;}
   .jrow .info .rowtop{display:flex; justify-content:space-between; align-items:baseline; gap:1em;}
   .jrow .info h3{font-family:var(--sans); font-weight:700; color:var(--text);
@@ -278,7 +278,9 @@
   #dots .d.on{background:var(--holo); box-shadow:var(--holoGlow); transform:scale(1.15);}
   #counter{font-family:var(--mono); font-size:12px; letter-spacing:.14em;
     color:var(--textDim); min-width:5.4ch; text-align:center;}
-  .hint{position:fixed; z-index:70; bottom:min(3.2vh,26px);
+  /* sit the prev/next hints above the footer line so they never collide
+     with the footer index/title or the centred nav bar at any width */
+  .hint{position:fixed; z-index:70; bottom:min(7.5vh,60px);
     font-family:var(--mono); font-size:10px; letter-spacing:.14em;
     color:var(--textFaint); opacity:.8;}
   .hint.r{right:min(4vw,40px)} .hint.l{left:min(4vw,40px)}
