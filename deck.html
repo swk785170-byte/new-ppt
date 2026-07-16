@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Operation Skyline — The Rescue Glider Challenge</title>
+<!--
+  ==========================================================================
+   OPERATION SKYLINE // The Rescue Glider Challenge
+   Interactive "hero" deck — self-contained, offline-ready, dependency-free.
+   Shares the holographic visual system with the .pptx (palette mirrored in
+   :root below). All motion is real CSS keyframes + animated inline SVG:
+     • persistent scanline / flicker / vignette ambiance
+     • BUILD  — glider airframe assembles (SVG line-drawing + parts lock in)
+     • LAUNCH — throwing arm sweeps, glider releases up the arc
+     • IMPACT — flight arc draws to the rescue zone, target rings light,
+                amber shock-ripple on contact
+   Nav: click right/left half · arrow keys / space · on-screen buttons · dots.
+  ==========================================================================
+-->
+<style>
+  /* ---- palette (mirrors scripts/theme.mjs C) --------------------------- */
+  :root{
+    --bg0:#04060E; --bg1:#081120; --bg2:#0E1B30; --grid:#13314C;
+    --holo:#34E7E7; --holoLt:#7DF7F2; --holoHot:#D8FFFB; --electron:#3E86FF;
+    --amber:#FFB020; --amberLt:#FFD873; --danger:#FF5A5A;
+    --text:#EAF7FF; --textDim:#9BBFD3; --textFaint:#5E7C90;
+    --mono:'Consolas','SF Mono','Roboto Mono',ui-monospace,monospace;
+    --sans:'Segoe UI','Inter',system-ui,-apple-system,sans-serif;
+    --holoGlow:0 0 6px rgba(52,231,231,.55),0 0 18px rgba(52,231,231,.28);
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg0); color:var(--text); font-family:var(--sans);
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+    user-select:none;
+  }
+
+  /* ---- stage / slide track -------------------------------------------- */
+  #stage{position:fixed; inset:0; overflow:hidden;}
+  #track{display:flex; width:100%; height:100%;
+    transition:transform .72s var(--ease);}
+  .slide{position:relative; min-width:100%; height:100%; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:min(6.2vh,64px) min(6vw,90px);}
+  /* schematic grid + vignette + void backdrop shared by every slide */
+  .slide::before{content:""; position:absolute; inset:0; z-index:0;
+    background:
+      radial-gradient(120% 90% at 78% 12%, rgba(62,134,255,.10), transparent 55%),
+      radial-gradient(120% 120% at 15% 100%, rgba(52,231,231,.10), transparent 55%),
+      linear-gradient(var(--bg1),var(--bg0));
+  }
+  .slide::after{content:""; position:absolute; inset:0; z-index:0; opacity:.5;
+    background-image:
+      linear-gradient(rgba(19,49,76,.55) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(19,49,76,.55) 1px,transparent 1px);
+    background-size:46px 46px;
+    -webkit-mask-image:radial-gradient(130% 100% at 50% 45%,#000 55%,transparent 100%);
+            mask-image:radial-gradient(130% 100% at 50% 45%,#000 55%,transparent 100%);
+  }
+  .slide > *{position:relative; z-index:2;}
+
+  /* ---- ambient overlay: scanlines + flicker + vignette ---------------- */
+  #fx{position:fixed; inset:0; z-index:60; pointer-events:none;}
+  #fx .scan{position:absolute; inset:0; opacity:.35;
+    background:repeating-linear-gradient(to bottom,
+      rgba(255,255,255,.035) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;}
+  #fx .sweep{position:absolute; left:0; right:0; height:26%;
+    background:linear-gradient(to bottom,transparent,rgba(52,231,231,.06),transparent);
+    animation:sweep 7.5s linear infinite;}
+  #fx .flick{position:absolute; inset:0; background:rgba(52,231,231,.02);
+    animation:flick 5s steps(2,end) infinite;}
+  #fx .vig{position:absolute; inset:0;
+    box-shadow:inset 0 0 240px 40px rgba(0,0,0,.75);}
+  @keyframes sweep{0%{transform:translateY(-30%)}100%{transform:translateY(430%)}}
+  @keyframes flick{0%,100%{opacity:.35}48%{opacity:.55}50%{opacity:.15}52%{opacity:.5}}
+
+  /* ---- typographic system --------------------------------------------- */
+  .kicker{font-family:var(--mono); font-weight:700; letter-spacing:.32em;
+    font-size:clamp(11px,1.15vw,14px); color:var(--holo);
+    text-shadow:var(--holoGlow);}
+  .kicker.danger{color:var(--danger); text-shadow:0 0 8px rgba(255,90,90,.5);}
+  .seqmark{font-family:var(--mono); font-weight:700; letter-spacing:.4em;
+    color:var(--holo); font-size:clamp(11px,1.15vw,14px); text-shadow:var(--holoGlow);}
+  h1.title{font-family:var(--sans); font-weight:900; letter-spacing:.01em;
+    line-height:1.02; color:var(--text); text-shadow:0 2px 30px rgba(0,0,0,.5);}
+  .lead{color:var(--textDim); font-size:clamp(15px,1.5vw,19px);
+    line-height:1.5; max-width:52ch;}
+  .footer{position:absolute; left:min(6vw,90px); right:min(6vw,90px);
+    bottom:min(3.4vh,30px); display:flex; justify-content:space-between;
+    align-items:center; font-family:var(--mono); font-size:clamp(9px,.85vw,11px);
+    letter-spacing:.18em; color:var(--textFaint); z-index:3;}
+  .footer .idx b{color:var(--holo)} .footer .idx span{color:var(--textDim)}
+
+  /* ---- reusable holo card --------------------------------------------- */
+  .card{background:linear-gradient(160deg,rgba(14,27,48,.85),rgba(8,17,32,.6));
+    border:1px solid var(--grid); border-radius:12px; position:relative;
+    overflow:hidden; backdrop-filter:blur(2px);}
+  .card::before{content:""; position:absolute; left:22px; top:26px; width:44px;
+    height:4px; background:var(--holo); box-shadow:var(--holoGlow); border-radius:2px;}
+  .card .num{font-family:var(--sans); font-weight:900; color:var(--holo);
+    text-shadow:var(--holoGlow); font-size:clamp(34px,3.6vw,50px); line-height:1;}
+  .card h3{font-family:var(--sans); font-weight:700; color:var(--text);
+    font-size:clamp(15px,1.4vw,18px); margin:.1em 0 .4em;}
+  .card p{color:var(--textDim); font-size:clamp(12px,1.05vw,13.5px); line-height:1.45;}
+
+  /* =====================================================================
+     PER-SLIDE LAYOUTS
+     ===================================================================== */
+  /* Cover / Closing centered */
+  .center{align-items:center; text-align:center;}
+  .center .title{font-size:clamp(44px,7.6vw,104px); letter-spacing:.03em;
+    margin:.12em 0 .1em;}
+  .center .sub{font-family:var(--sans); font-weight:700; color:var(--holoLt);
+    text-shadow:var(--holoGlow); font-size:clamp(20px,2.7vw,34px);}
+  .center .tag{color:var(--textDim); font-style:italic;
+    font-size:clamp(14px,1.5vw,18px); margin-top:.7em;}
+  .center .meta{font-family:var(--mono); letter-spacing:.12em; margin-top:1.5em;
+    font-size:clamp(11px,1.2vw,14px); color:var(--textDim);}
+  .center .meta b{color:var(--text)} .center .meta i{color:var(--holo);font-style:normal;}
+  .corner{position:absolute; top:min(4vh,34px); font-family:var(--mono);
+    font-size:clamp(9px,.9vw,11px); letter-spacing:.22em; color:var(--textFaint); z-index:3;}
+  .corner.l{left:min(6vw,90px)} .corner.r{right:min(6vw,90px)}
+
+  /* Mission briefing */
+  .brief .title{font-size:clamp(34px,5.2vw,60px); margin:.28em 0 .5em;}
+  .chip{display:inline-flex; align-items:center; gap:.5em; font-family:var(--mono);
+    font-weight:700; font-size:clamp(10px,1vw,12px); letter-spacing:.16em;
+    color:var(--danger); border:1px solid var(--danger); border-radius:7px;
+    padding:.42em .8em; background:rgba(255,90,90,.06);}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);
+    box-shadow:0 0 8px var(--danger); animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .narr{margin-top:1.4em; display:flex; flex-direction:column; gap:.85em; max-width:64ch;}
+  .narr .ln{display:flex; gap:.9em; align-items:flex-start;}
+  .narr .ln .bar{flex:none; width:5px; height:1.35em; background:var(--holo);
+    box-shadow:var(--holoGlow); border-radius:2px; margin-top:.12em;}
+  .narr .ln.first p{color:var(--holoLt); font-weight:700; font-size:clamp(17px,1.85vw,22px);}
+  .narr .ln p{color:var(--textDim); font-size:clamp(14px,1.45vw,17px); line-height:1.4;}
+  .punch{margin-top:1.5em; color:var(--text); font-weight:700;
+    font-size:clamp(16px,1.75vw,21px); line-height:1.35; max-width:60ch;
+    font-family:var(--sans);}
+
+  /* generic header block (kicker + title + optional lead) */
+  .head{margin-bottom:min(3vh,26px);}
+  .head .title{font-size:clamp(30px,4.4vw,52px); margin:.24em 0;}
+
+  /* objective cards row */
+  .grid4{display:grid; grid-template-columns:repeat(4,1fr); gap:min(2vw,22px);}
+  .grid4 .card{padding:26px 22px 24px; display:flex; flex-direction:column;}
+  .grid4 .card .num{margin-top:14px;}
+
+  /* rules columns */
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:min(2.4vw,30px);}
+  .grid3 .col{padding:26px 24px;}
+  .grid3 .col .cnum{font-family:var(--mono); font-weight:700; color:var(--holo);
+    letter-spacing:.1em; text-shadow:var(--holoGlow); font-size:clamp(13px,1.3vw,16px);}
+  .grid3 .col h3{font-family:var(--sans); font-weight:700; color:var(--holoLt);
+    font-size:clamp(17px,1.7vw,21px); margin:.2em 0 .7em;}
+  .grid3 .col ul{list-style:none; display:flex; flex-direction:column; gap:.62em;}
+  .grid3 .col li{position:relative; padding-left:1.2em; color:var(--textDim);
+    font-size:clamp(12.5px,1.2vw,15px); line-height:1.4;}
+  .grid3 .col li::before{content:""; position:absolute; left:0; top:.5em; width:8px;
+    height:8px; background:var(--holo); box-shadow:var(--holoGlow);}
+
+  /* judging bars */
+  .judge{display:flex; flex-direction:column; gap:min(2.2vh,20px); max-width:1100px;}
+  .jrow{display:grid; grid-template-columns:max-content 1fr; column-gap:min(2.6vw,32px);
+    align-items:center;}
+  .jrow .pct{font-family:var(--sans); font-weight:900; color:var(--holo);
+    text-shadow:var(--holoGlow); font-size:clamp(26px,3.2vw,40px); line-height:1;
+    white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums;}
+  .jrow .info{display:flex; flex-direction:column; gap:.35em; grid-column:2;}
+  .jrow .info .rowtop{display:flex; justify-content:space-between; align-items:baseline; gap:1em;}
+  .jrow .info h3{font-family:var(--sans); font-weight:700; color:var(--text);
+    font-size:clamp(15px,1.6vw,20px);}
+  .jrow .info p{color:var(--textFaint); font-size:clamp(11px,1.05vw,13.5px);}
+  .bar{height:12px; border-radius:6px; background:var(--bg2);
+    border:1px solid var(--grid); overflow:hidden; position:relative;}
+  .bar i{display:block; height:100%; width:0; border-radius:6px;
+    background:linear-gradient(90deg,var(--electron),var(--holo));
+    box-shadow:0 0 12px rgba(52,231,231,.6); transition:width 1.1s var(--ease);}
+  .slide.active .bar i{width:var(--w);}
+
+  /* timeline */
+  .tl{position:relative; margin-left:2px; display:flex; flex-direction:column;
+    gap:min(1.9vh,17px);}
+  .tl .spine{position:absolute; left:calc(1.5ch + 34px); top:6px; bottom:6px;
+    width:2px; background:var(--grid);}
+  .tl .spine i{position:absolute; inset:0 auto 0 0; width:100%; height:0;
+    background:linear-gradient(var(--holo),var(--electron));
+    box-shadow:0 0 10px rgba(52,231,231,.6); transition:height 1.3s var(--ease);}
+  .slide.active .tl .spine i{height:100%;}
+  .tl .stop{display:grid; grid-template-columns:5.5ch 34px 1fr; align-items:center;
+    column-gap:14px;}
+  .tl .stop .t{font-family:var(--mono); font-weight:700; color:var(--holo);
+    text-shadow:var(--holoGlow); font-size:clamp(13px,1.4vw,17px);}
+  .tl .stop .node{justify-self:center; width:15px; height:15px; border-radius:50%;
+    background:var(--holo); box-shadow:var(--holoGlow); border:2px solid var(--bg0);
+    position:relative; z-index:2;}
+  .tl .stop .txt b{color:var(--text); font-weight:700; font-size:clamp(14px,1.4vw,17px);}
+  .tl .stop .txt span{color:var(--textDim); font-size:clamp(12px,1.2vw,14.5px); margin-left:.6em;}
+
+  /* hero (build/launch/impact) two-column */
+  .hero{display:grid; grid-template-columns:1.05fr 1fr; align-items:center;
+    gap:min(3vw,40px); height:100%;}
+  .hero .htext{display:flex; flex-direction:column; gap:.7em;}
+  .hero .htext .htitle{font-family:var(--sans); font-weight:900;
+    font-size:clamp(52px,8.5vw,120px); line-height:.92; letter-spacing:.04em;
+    color:var(--text); text-shadow:0 0 30px rgba(52,231,231,.25);}
+  .hero .htext .hline{color:var(--textDim); font-style:italic; max-width:34ch;
+    font-size:clamp(14px,1.5vw,18px); line-height:1.45;}
+  .hero .htext .hnote{font-family:var(--mono); color:var(--textFaint);
+    font-size:clamp(10px,1vw,12.5px); letter-spacing:.14em; margin-top:.4em;}
+  .hero .stagebox{position:relative; width:100%; aspect-ratio:1/1;
+    max-height:74vh; justify-self:center;}
+  .hero svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible;}
+
+  /* ---- SVG stroke helpers --------------------------------------------- */
+  .draw{stroke-dasharray:var(--len,600); stroke-dashoffset:var(--len,600);}
+  .slide.active .draw{animation:draw 1.15s var(--ease) forwards;}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .fadein{opacity:0}
+  .slide.active .fadein{animation:fadein .8s ease forwards;}
+  @keyframes fadein{to{opacity:1}}
+  .popin{opacity:0; transform:scale(.6);}
+  .slide.active .popin{animation:popin .5s var(--ease) forwards;}
+  @keyframes popin{to{opacity:1; transform:scale(1);}}
+
+  /* generic staggered entrance for text blocks */
+  .rise{opacity:0; transform:translateY(16px);}
+  .slide.active .rise{animation:rise .7s var(--ease) forwards;}
+  @keyframes rise{to{opacity:1; transform:none;}}
+
+  /* ---- hero glider flight (build / launch / impact) ------------------- */
+  /* The glider sits in an outer <g transform="translate(endX,endY)"> and the
+     inner .glide* animates the flight-in offset + bank, pivoting on its own
+     centre (transform-box:fill-box) so the plane reads as flying along the arc. */
+  .glideL,.glideI,.buildGlider{opacity:0; transform-box:fill-box; transform-origin:center;}
+  /* cyan glow for the holo glider */
+  .glideL,.buildGlider{filter:drop-shadow(0 0 5px rgba(52,231,231,.55));}
+  /* IMPACT: keep the cyan sprite (complementary to the amber target, so it
+     reads with high contrast) and brighten it for the strike flash */
+  .glideI{filter:brightness(1.25) drop-shadow(0 0 9px rgba(125,247,242,.85));}
+
+  /* BUILD — airframe materialises in the hands */
+  .slide.active .buildGlider{animation:buildGlider 1.05s var(--ease) .55s forwards;}
+  @keyframes buildGlider{
+    0%  {opacity:0; transform:scale(.45) rotate(-5deg);}
+    55% {opacity:1;}
+    100%{opacity:1; transform:scale(1) rotate(0);}
+  }
+  /* LAUNCH — glider climbs the trajectory arc, levelling out */
+  .slide.active .glideL{animation:glideL 2.2s var(--ease) .9s forwards;}
+  @keyframes glideL{
+    0%  {opacity:0; transform:translate(-102px,20px) rotate(-24deg) scale(.5);}
+    16% {opacity:1; transform:translate(-102px,20px) rotate(-24deg) scale(1);}
+    60% {transform:translate(-51px,-4px) rotate(-16deg);}
+    100%{opacity:1; transform:translate(0,0) rotate(-6deg);}
+  }
+  /* IMPACT — glider arcs in from the left and dives into the bullseye */
+  .slide.active .glideI{animation:glideI 1.5s var(--ease) .5s forwards;}
+  @keyframes glideI{
+    0%  {opacity:0; transform:translate(-78px,-50px) rotate(-58deg) scale(.6);}
+    14% {opacity:1; transform:translate(-78px,-50px) rotate(-58deg) scale(1);}
+    55% {transform:translate(-34px,-66px) rotate(-2deg);}
+    100%{opacity:1; transform:translate(0,0) rotate(58deg) scale(.9);}
+  }
+  /* amber shock-ripple when the glider strikes the zone */
+  .ripple{opacity:0; transform-box:fill-box; transform-origin:center;}
+  .slide.active .ripple{animation:ripple 1.25s ease-out 1.9s infinite;}
+  @keyframes ripple{
+    0%  {opacity:.85; transform:scale(.35);}
+    100%{opacity:0;   transform:scale(6);}
+  }
+
+  /* ---- navigation ------------------------------------------------------ */
+  #nav{position:fixed; z-index:70; bottom:min(3.2vh,26px); left:50%;
+    transform:translateX(-50%); display:flex; align-items:center; gap:14px;
+    background:rgba(8,17,32,.7); border:1px solid var(--grid); border-radius:40px;
+    padding:8px 14px; backdrop-filter:blur(6px);}
+  #nav button{background:none; border:none; color:var(--holo); cursor:pointer;
+    font-size:18px; line-height:1; padding:4px 8px; border-radius:8px;
+    font-family:var(--mono);}
+  #nav button:hover{background:rgba(52,231,231,.14);}
+  #dots{display:flex; gap:8px;}
+  #dots .d{width:9px; height:9px; border-radius:50%; background:var(--grid);
+    cursor:pointer; transition:all .3s;}
+  #dots .d.on{background:var(--holo); box-shadow:var(--holoGlow); transform:scale(1.15);}
+  #counter{font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    color:var(--textDim); min-width:5.4ch; text-align:center;}
+  /* sit the prev/next hints above the footer line so they never collide
+     with the footer index/title or the centred nav bar at any width */
+  .hint{position:fixed; z-index:70; bottom:min(7.5vh,60px);
+    font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+    color:var(--textFaint); opacity:.8;}
+  .hint.r{right:min(4vw,40px)} .hint.l{left:min(4vw,40px)}
+  @media(max-width:820px){
+    .grid4,.grid3{grid-template-columns:1fr 1fr;}
+    .hero{grid-template-columns:1fr; gap:14px;}
+    .hero .stagebox{max-height:42vh;}
+    .hint{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div id="track"><!-- slides injected --></div></div>
+
+<!-- ambient CRT overlay -->
+<div id="fx"><div class="scan"></div><div class="sweep"></div><div class="flick"></div><div class="vig"></div></div>
+
+<!-- navigation -->
+<div class="hint l">◄ PREV</div>
+<div class="hint r">NEXT ►</div>
+<div id="nav">
+  <button id="prev" title="Previous (←)">◄</button>
+  <div id="dots"></div>
+  <span id="counter">01 / 10</span>
+  <button id="next" title="Next (→)">►</button>
+</div>
+
+<script>
+/* ============================================================================
+   CONTENT (mirrors scripts/theme.mjs)
+   ========================================================================== */
+const EVENT={program:"STEM ENGINEERING CHALLENGE SERIES",title:"OPERATION SKYLINE",
+  subtitle:"The Rescue Glider Challenge",tagline:"Salvage. Engineer. Deploy. Save the zone.",
+  date:"Saturday, 15 August 2026",venue:"Innovation Hangar, Main Auditorium",
+  host:"presented by the Engineering Guild",edition:"FIELD BRIEFING // v1.0"};
+const MISSION={code:"OP-SKYLINE // PRIORITY: CRITICAL",lines:[
+  "Disaster strikes again.",
+  "While approaching the rescue zone, teams hit dangerous terrain and severe conditions that halt all ground movement.",
+  "The rescue point lies beyond a mountain ridge — and time is running out.",
+  "Using only salvaged aircraft materials and available resources, each team must design and build an emergency glider capable of carrying critical supplies across the obstacle."],
+  punch:"The mission now depends on your engineering creativity, precision, and teamwork."};
+const OBJECTIVE={kicker:"EVENT OVERVIEW",title:"Your Objective, Rescue Engineers",
+  lead:"Build a flight-worthy glider from salvage that clears the ridge and delivers its payload to the rescue zone.",
+  cards:[
+    {h:"Engineer the Airframe",p:"Design & assemble a glider from the salvaged materials on your bench."},
+    {h:"Secure the Payload",p:"Carry the supply capsule — mass counts, but it must arrive intact."},
+    {h:"Clear the Ridge",p:"Achieve the distance to cross the obstacle and reach the far side."},
+    {h:"Hit the Zone",p:"Land on-target. Accuracy over the rescue point wins the mission."}]};
+const SEQUENCE=[
+  {id:"build",seq:"SEQUENCE 01 / 03",kicker:"ASSEMBLE THE GLIDER",title:"BUILD",
+   line:"Salvage becomes airframe. Hands, blueprints, and precision under pressure.",
+   note:"HOLOGRAPHIC ASSEMBLY — COMPONENTS LOCK INTO PLACE"},
+  {id:"launch",seq:"SEQUENCE 02 / 03",kicker:"DEPLOY",title:"LAUNCH",
+   line:"Wind up. Read the air. One clean release sends the payload skyward.",
+   note:"THE GLIDER LEAVES THE HAND AND ENTERS THE FLIGHT ARC"},
+  {id:"target",seq:"SEQUENCE 03 / 03",kicker:"TARGET: RESCUE ZONE",title:"IMPACT",
+   line:"The arc holds true. Supplies strike the zone. Mission accomplished.",
+   note:"CONTACT — THE RESCUE POINT LIGHTS UP ON IMPACT"}];
+const RULES={kicker:"RULES & CONSTRAINTS",title:"Field Regulations",groups:[
+  {h:"Salvage Only",items:["Balsa, paper, card, tape & string from the supply crate","No pre-built kits or powered components","One roll of tape per team — spend it wisely"]},
+  {h:"Build Window",items:["45 minutes to design & construct","10-minute strategy huddle before the clock","Tools down when the siren sounds"]},
+  {h:"Launch Rules",items:["Hand-launch only, from behind the deploy line","One practice throw, three scored attempts","Glider must be intact after each flight"]}]};
+const JUDGING={kicker:"JUDGING CRITERIA",title:"How the Mission Is Scored",criteria:[
+  {pct:35,h:"Distance",p:"Clearing the ridge — measured from the deploy line to touchdown."},
+  {pct:30,h:"Target Accuracy",p:"Proximity of landing to the marked rescue zone."},
+  {pct:20,h:"Design & Craft",p:"Structural creativity, aerodynamics, and build quality."},
+  {pct:15,h:"Teamwork",p:"Coordination, safety, and clean execution under time."}]};
+const TIMELINE={kicker:"MISSION TIMELINE",title:"Schedule of Operations",stops:[
+  {t:"09:00",h:"Check-in & Briefing",p:"Teams assemble. Mission parameters issued."},
+  {t:"09:30",h:"Salvage Distribution",p:"Supply crates handed out. Inspect your materials."},
+  {t:"09:45",h:"Build Window Opens",p:"45 minutes on the clock. Engineer the airframe."},
+  {t:"10:30",h:"Deploy & Fly",p:"Hand-launch trials across the ridge."},
+  {t:"11:30",h:"Judging & Scoring",p:"Distance, accuracy, design, and teamwork tallied."},
+  {t:"12:15",h:"Awards Ceremony",p:"Rescue honors awarded. Mission debrief."}]};
+const CLOSING={kicker:"DEPLOY",title:"Good Luck, Rescue Engineers",
+  line:"The ridge is waiting. The zone is counting on you.",cta:"Salvage. Engineer. Deploy.",
+  sign:EVENT.title+" // "+EVENT.subtitle};
+const NAV=["COVER","BRIEFING","OBJECTIVE","BUILD","LAUNCH","IMPACT","RULES","JUDGING","TIMELINE","DEPLOY"];
+
+/* ============================================================================
+   SVG BUILDING BLOCKS
+   ========================================================================== */
+// The emblem: rotating reticle + glider chevron (used on cover & closing)
+function emblem(size){
+  return `<svg viewBox="0 0 200 200" style="width:${size};height:${size};overflow:visible" aria-hidden="true">
+    <defs>
+      <filter id="eg" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge>
+        <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <g fill="none" stroke="var(--holo)" stroke-width="2" filter="url(#eg)">
+      <circle cx="100" cy="100" r="86" stroke-opacity=".35"/>
+      <circle class="spin" cx="100" cy="100" r="72" stroke-dasharray="10 16" style="transform-origin:100px 100px"/>
+      <circle cx="100" cy="100" r="54" stroke-opacity=".55"/>
+      <line x1="100" y1="6" x2="100" y2="30"/><line x1="100" y1="170" x2="100" y2="194"/>
+      <line x1="6" y1="100" x2="30" y2="100"/><line x1="170" y1="100" x2="194" y2="100"/>
+    </g>
+    <g filter="url(#eg)">
+      <path d="M60 118 L100 66 L140 118 L100 100 Z" fill="var(--holo)" fill-opacity=".16"
+        stroke="var(--holoLt)" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="100" cy="104" r="5" fill="var(--holoHot)"/>
+    </g>
+  </svg>`;
+}
+
+// Holo-figure (articulated neon mannequin) in a given pose.
+// pose: 'build' | 'launch' | 'follow'.  Optional `xform` repositions/scales the
+// whole figure within the 0..300 box (used on IMPACT to clear the target).
+function figure(pose, xform=""){
+  // joint coordinates in a 0..300 box
+  const P={
+    build:{ // both hands forward at bench, head down slightly
+      head:[150,66], neck:[150,96], hip:[150,176],
+      shL:[122,104], elL:[104,140], haL:[150,150],
+      shR:[178,104], elR:[196,140], haR:[150,150],
+      kneeL:[128,224], ftL:[120,286], kneeR:[176,224], ftR:[186,286]},
+    launch:{ // right arm cocked back-up, torso leaning
+      head:[150,60], neck:[150,92], hip:[152,172],
+      shL:[124,100], elL:[100,132], haL:[92,168],
+      shR:[178,100], elR:[210,74], haR:[196,42],
+      kneeL:[128,222], ftL:[110,284], kneeR:[182,222], ftR:[200,284]},
+    follow:{ // full extension forward after release
+      head:[150,64], neck:[150,94], hip:[150,174],
+      shL:[124,102], elL:[104,138], haL:[96,172],
+      shR:[178,102], elR:[214,116], haR:[248,120],
+      kneeL:[130,224], ftL:[118,286], kneeR:[178,224], ftR:[196,286]}
+  }[pose];
+  const bone=(a,b,w=9,delay=0)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"
+    stroke="var(--holo)" stroke-width="${w}" stroke-linecap="round"
+    class="draw" style="--len:220;animation-delay:${delay}s"/>`;
+  const joint=(p,delay=0)=>`<circle cx="${p[0]}" cy="${p[1]}" r="4.4" fill="var(--holoHot)"
+    class="popin" style="animation-delay:${delay}s"/>`;
+  return `<svg viewBox="0 0 300 300" aria-hidden="true">
+    <defs><filter id="fg-${pose}" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3" result="b"/><feMerge>
+      <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <g filter="url(#fg-${pose})" fill="none"${xform ? ` transform="${xform}"` : ""}>
+      <!-- spine + limbs -->
+      ${bone(P.neck,P.hip,11,.05)}
+      ${bone(P.neck,P.shL,8,.1)}${bone(P.shL,P.elL,8,.18)}${bone(P.elL,P.haL,7,.26)}
+      ${bone(P.neck,P.shR,8,.1)}${bone(P.shR,P.elR,8,.18)}${bone(P.elR,P.haR,7,.26)}
+      ${bone(P.hip,P.kneeL,9,.3)}${bone(P.kneeL,P.ftL,8,.38)}
+      ${bone(P.hip,P.kneeR,9,.3)}${bone(P.kneeR,P.ftR,8,.38)}
+      <!-- head -->
+      <circle cx="${P.head[0]}" cy="${P.head[1]}" r="17" fill="var(--holo)" fill-opacity=".2"
+        stroke="var(--holoLt)" stroke-width="3" class="draw" style="--len:120;animation-delay:0s"/>
+      ${joint(P.neck,.5)}${joint(P.shL,.55)}${joint(P.elL,.6)}${joint(P.haL,.66)}
+      ${joint(P.shR,.55)}${joint(P.elR,.6)}${joint(P.haR,.66)}
+      ${joint(P.hip,.5)}${joint(P.kneeL,.7)}${joint(P.kneeR,.7)}
+    </g>
+  </svg>`;
+}
+
+// Holographic glider sprite (raster wireframe on a transparent bg), embedded as
+// a data-URI so the deck stays self-contained. The source nose points ~left, so
+// we mirror it to point +x; the parent <g> + keyframes then set heading/position
+// within the 0..300 stage viewBox. `style` lets IMPACT recolour it to amber.
+const GLIDER = "data:image/png;base64,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";
+const GLIDER_AR = 973 / 298; // sprite aspect ratio (w/h)
+function gliderImg(cls, w, style = ""){
+  const h = w / GLIDER_AR;
+  return `<g class="${cls}"${style ? ` style="${style}"` : ""}>
+    <g transform="scale(-1,1)">
+      <image href="${GLIDER}" x="${(-w/2).toFixed(1)}" y="${(-h/2).toFixed(1)}"
+        width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="xMidYMid meet"/>
+    </g></g>`;
+}
+
+/* ============================================================================
+   SLIDE TEMPLATES
+   ========================================================================== */
+function footer(i){
+  return `<div class="footer">
+    <span class="idx"><b>${String(i+1).padStart(2,"0")}</b> <span>/ 10 &nbsp; ${NAV[i]}</span></span>
+    <span>${EVENT.title} // ${EVENT.subtitle}</span></div>`;
+}
+
+// 1 — COVER
+function sCover(){return `
+  <div class="corner l">${EVENT.host.toUpperCase()}</div>
+  <div class="corner r">${EVENT.edition}</div>
+  <div class="center">
+    <div class="popin" style="animation-delay:.05s">${emblem("clamp(96px,13vw,168px)")}</div>
+    <div class="kicker rise" style="animation-delay:.3s; margin-top:1.1em">${EVENT.program}</div>
+    <h1 class="title rise" style="animation-delay:.42s">${EVENT.title}</h1>
+    <div class="sub rise" style="animation-delay:.55s">${EVENT.subtitle}</div>
+    <div class="tag rise" style="animation-delay:.68s">${EVENT.tagline}</div>
+    <div class="meta rise" style="animation-delay:.82s"><b>${EVENT.date}</b> &nbsp;<i>·</i>&nbsp; ${EVENT.venue}</div>
+  </div>`;}
+
+// 2 — MISSION BRIEFING
+function sBrief(i){
+  const lns=MISSION.lines.map((l,k)=>`
+    <div class="ln ${k===0?"first":""} rise" style="animation-delay:${.35+k*.14}s">
+      <span class="bar"></span><p>${l}</p></div>`).join("");
+  return `<div class="brief">
+    <div class="kicker danger rise">${MISSION.code}</div>
+    <h1 class="title rise" style="animation-delay:.12s">Disaster Strikes Again.</h1>
+    <div class="rise" style="animation-delay:.24s"><span class="chip"><span class="dot"></span>MISSION BRIEFING</span></div>
+    <div class="narr">${lns}</div>
+    <div class="punch rise" style="animation-delay:${.35+MISSION.lines.length*.14+.1}s">${MISSION.punch}</div>
+  </div>
+  <svg style="position:absolute; right:-2%; top:12%; width:min(42vw,520px); height:min(42vw,520px); z-index:1; opacity:.5" viewBox="0 0 200 200" aria-hidden="true">
+    <g fill="none" stroke="var(--holo)" stroke-width="1.4" stroke-opacity=".6">
+      ${[70,52,34,16].map(r=>`<circle cx="100" cy="100" r="${r}"/>`).join("")}
+      <line x1="100" y1="14" x2="100" y2="186"/><line x1="14" y1="100" x2="186" y2="100"/>
+    </g><circle cx="100" cy="100" r="7" fill="var(--danger)" opacity=".7"/>
+  </svg>${footer(i)}`;
+}
+
+// 3 — OBJECTIVE
+function sObjective(i){
+  const cards=OBJECTIVE.cards.map((c,k)=>`
+    <div class="card rise" style="animation-delay:${.2+k*.12}s">
+      <div class="num">${String(k+1).padStart(2,"0")}</div>
+      <h3>${c.h}</h3><p>${c.p}</p></div>`).join("");
+  return `<div class="head">
+      <div class="kicker rise">${OBJECTIVE.kicker}</div>
+      <h1 class="title rise" style="animation-delay:.1s">${OBJECTIVE.title}</h1>
+      <p class="lead rise" style="animation-delay:.2s">${OBJECTIVE.lead}</p>
+    </div>
+    <div class="grid4">${cards}</div>${footer(i)}`;
+}
+
+// HERO shell (build/launch/impact)
+function heroShell(seq,stageSVG,i){
+  return `<div class="hero">
+    <div class="htext">
+      <div class="seqmark rise">${seq.seq}</div>
+      <div class="kicker rise" style="animation-delay:.1s; color:var(--textDim); text-shadow:none">${seq.kicker}</div>
+      <div class="htitle rise" style="animation-delay:.18s">${seq.title}</div>
+      <div class="hline rise" style="animation-delay:.3s">${seq.line}</div>
+      <div class="hnote rise" style="animation-delay:.42s">${seq.note}</div>
+    </div>
+    <div class="stagebox">${stageSVG}</div>
+  </div>${footer(i)}`;
+}
+
+// 4 — BUILD stage: figure + glider airframe drawing itself together (0..300 space)
+function stageBuild(){
+  return `${figure("build")}
+  <svg viewBox="0 0 300 300" aria-hidden="true">
+    <defs><filter id="gb" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge>
+      <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <!-- workbench line -->
+    <line x1="18" y1="250" x2="282" y2="250" stroke="var(--grid)" stroke-width="2"
+      class="draw" style="--len:280"/>
+    <!-- assembly reticle sweeping the airframe -->
+    <rect x="98" y="112" width="104" height="58" rx="4" fill="none" stroke="var(--electron)"
+      stroke-width="1.4" stroke-dasharray="6 8" class="fadein" style="animation-delay:1.8s; opacity:.5"/>
+    <!-- glider airframe materialising in the hands (centre ~150,138) -->
+    <g transform="translate(150,138)">${gliderImg("buildGlider", 118)}</g>
+    <!-- payload capsule locking onto the nose -->
+    <circle cx="206" cy="140" r="7" fill="var(--amber)" fill-opacity=".25"
+      stroke="var(--amber)" stroke-width="2.2" filter="url(#gb)" class="popin" style="animation-delay:1.4s"/>
+  </svg>`;
+}
+
+// 5 — LAUNCH stage: figure cocked, glider releasing up the arc (0..300 space)
+function stageLaunch(){
+  return `${figure("launch")}
+  <svg viewBox="0 0 300 300" aria-hidden="true">
+    <defs><filter id="gl" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.6" result="b"/><feMerge>
+      <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <marker id="ah" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+        <path d="M0 0 L9 4.5 L0 9 Z" fill="var(--holo)"/></marker></defs>
+    <!-- deploy line -->
+    <line x1="60" y1="258" x2="60" y2="210" stroke="var(--holo)" stroke-width="2.2"
+      class="draw" style="--len:60"/>
+    <text x="60" y="276" fill="var(--textFaint)" font-family="var(--mono)" font-size="11"
+      text-anchor="middle" class="fadein" style="animation-delay:1s">DEPLOY LINE</text>
+    <!-- launch trajectory arc (release -> skyward) -->
+    <path id="arcL" d="M196 46 Q248 8 298 26" fill="none" stroke="var(--holo)"
+      stroke-width="2.4" stroke-dasharray="2 9" marker-end="url(#ah)" filter="url(#gl)"
+      class="draw" style="--len:220; animation-delay:.7s; opacity:.85"/>
+    <!-- release burst near the throwing hand -->
+    <circle cx="196" cy="46" r="9" fill="none" stroke="var(--holoLt)" stroke-width="2.5"
+      filter="url(#gl)" class="popin" style="animation-delay:1s"/>
+    <!-- the glider, released, flying up the arc (ends at arc tip 298,26) -->
+    <g transform="translate(298,26)">${gliderImg("glideL", 90)}</g>
+    <!-- wind ticks -->
+    ${[96,126,156].map((y,k)=>`<line x1="24" y1="${y}" x2="46" y2="${y-6}" stroke="var(--electron)"
+      stroke-width="1.6" stroke-opacity=".5" class="fadein" style="animation-delay:${1.2+k*.15}s"/>`).join("")}
+  </svg>`;
+}
+
+// 6 — IMPACT stage: arc completes into target, rings light, amber ripple (0..300 space)
+function stageImpact(){
+  return `${figure("follow", "translate(-76,12) scale(0.9)")}
+  <svg viewBox="0 0 300 300" aria-hidden="true">
+    <defs><filter id="gi" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.8" result="b"/><feMerge>
+      <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <radialGradient id="hit" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="var(--amberLt)" stop-opacity=".9"/>
+        <stop offset="60%" stop-color="var(--amber)" stop-opacity=".25"/>
+        <stop offset="100%" stop-color="var(--amber)" stop-opacity="0"/></radialGradient></defs>
+    <!-- flight arc: follow-through hand -> target (stays clear of the figure) -->
+    <path d="M150 118 Q198 48 226 164" fill="none" stroke="var(--holo)" stroke-width="2.4"
+      stroke-dasharray="2 9" filter="url(#gi)" class="draw" style="--len:180; opacity:.8"/>
+    <!-- target: concentric rings, right side, lighting up in sequence -->
+    <g filter="url(#gi)" transform="translate(228,168)">
+      <circle r="60" fill="url(#hit)" class="fadein" style="animation-delay:1.15s"/>
+      ${[56,42,28,15].map((r,k)=>`<circle r="${r}" fill="none"
+        stroke="${k%2?"var(--amber)":"var(--holo)"}" stroke-width="2.6"
+        class="popin" style="animation-delay:${.5+k*.14}s"/>`).join("")}
+      <circle r="6" fill="var(--amberLt)" class="popin" style="animation-delay:1.05s"/>
+      <!-- crosshairs -->
+      <line x1="-70" y1="0" x2="-62" y2="0" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="62" y1="0" x2="70" y2="0" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="0" y1="-70" x2="0" y2="-62" stroke="var(--holo)" stroke-width="2"/>
+      <line x1="0" y1="62" x2="0" y2="70" stroke="var(--holo)" stroke-width="2"/>
+      <!-- shock ripple on contact -->
+      <circle class="ripple" r="10" fill="none" stroke="var(--amberLt)" stroke-width="3"/>
+    </g>
+    <!-- glider (amber) flying along the arc into the bullseye (ends at 228,168) -->
+    <g transform="translate(228,168)">${gliderImg("glideI", 72)}</g>
+    <text x="196" y="250" fill="var(--amber)" font-family="var(--mono)" font-size="11"
+      font-weight="700" text-anchor="middle" letter-spacing="1.4" class="fadein"
+      style="animation-delay:1.55s">RESCUE ZONE ● SECURED</text>
+  </svg>`;
+}
+
+// 7 — RULES
+function sRules(i){
+  const cols=RULES.groups.map((g,k)=>`
+    <div class="col card rise" style="animation-delay:${.18+k*.14}s">
+      <div class="cnum">0${k+1}</div><h3>${g.h}</h3>
+      <ul>${g.items.map(it=>`<li>${it}</li>`).join("")}</ul></div>`).join("");
+  return `<div class="head">
+      <div class="kicker rise">${RULES.kicker}</div>
+      <h1 class="title rise" style="animation-delay:.1s">${RULES.title}</h1></div>
+    <div class="grid3">${cols}</div>${footer(i)}`;
+}
+
+// 8 — JUDGING
+function sJudging(i){
+  const rows=JUDGING.criteria.map((c,k)=>`
+    <div class="jrow rise" style="animation-delay:${.2+k*.12}s">
+      <span class="pct">${c.pct}%</span>
+      <div class="info">
+        <div class="rowtop"><h3>${c.h}</h3></div>
+        <div class="bar"><i style="--w:${c.pct}%; transition-delay:${.3+k*.12}s"></i></div>
+        <p>${c.p}</p>
+      </div></div>`).join("");
+  return `<div class="head">
+      <div class="kicker rise">${JUDGING.kicker}</div>
+      <h1 class="title rise" style="animation-delay:.1s">${JUDGING.title}</h1></div>
+    <div class="judge">${rows}</div>${footer(i)}`;
+}
+
+// 9 — TIMELINE
+function sTimeline(i){
+  const stops=TIMELINE.stops.map((s,k)=>`
+    <div class="stop rise" style="animation-delay:${.2+k*.1}s">
+      <span class="t">${s.t}</span><span class="node"></span>
+      <span class="txt"><b>${s.h}</b><span>${s.p}</span></span></div>`).join("");
+  return `<div class="head">
+      <div class="kicker rise">${TIMELINE.kicker}</div>
+      <h1 class="title rise" style="animation-delay:.1s">${TIMELINE.title}</h1></div>
+    <div class="tl"><div class="spine"><i></i></div>${stops}</div>${footer(i)}`;
+}
+
+// 10 — CLOSING
+function sClosing(){return `
+  <div class="center">
+    <div class="popin" style="animation-delay:.05s">${emblem("clamp(84px,11vw,150px)")}</div>
+    <div class="kicker rise" style="animation-delay:.3s; margin-top:1em; letter-spacing:.5em">${CLOSING.kicker}</div>
+    <h1 class="title rise" style="animation-delay:.42s; font-size:clamp(38px,6.2vw,80px)">${CLOSING.title}</h1>
+    <div class="tag rise" style="animation-delay:.55s">${CLOSING.line}</div>
+    <div class="sub rise" style="animation-delay:.68s; letter-spacing:.16em; margin-top:.5em">${CLOSING.cta}</div>
+    <div class="meta rise" style="animation-delay:.82s">${CLOSING.sign}</div>
+  </div>`;}
+
+/* ============================================================================
+   ASSEMBLE + NAVIGATE
+   ========================================================================== */
+const slides=[
+  sCover(), sBrief(1), sObjective(2),
+  heroShell(SEQUENCE[0],stageBuild(),3),
+  heroShell(SEQUENCE[1],stageLaunch(),4),
+  heroShell(SEQUENCE[2],stageImpact(),5),
+  sRules(6), sJudging(7), sTimeline(8), sClosing()
+];
+const track=document.getElementById("track");
+track.innerHTML=slides.map((html,i)=>`<section class="slide" data-i="${i}">${html}</section>`).join("");
+const secs=[...document.querySelectorAll(".slide")];
+
+const dots=document.getElementById("dots");
+dots.innerHTML=secs.map((_,i)=>`<span class="d" data-i="${i}" title="${NAV[i]}"></span>`).join("");
+const dotEls=[...dots.children];
+const counter=document.getElementById("counter");
+
+let cur=0;
+function go(n){
+  cur=Math.max(0,Math.min(secs.length-1,n));
+  track.style.transform=`translateX(${-cur*100}%)`;
+  secs.forEach((s,i)=>s.classList.toggle("active",i===cur));
+  dotEls.forEach((d,i)=>d.classList.toggle("on",i===cur));
+  counter.textContent=`${String(cur+1).padStart(2,"0")} / ${String(secs.length).padStart(2,"0")}`;
+}
+const next=()=>go(cur+1), prev=()=>go(cur-1);
+
+document.getElementById("next").onclick=next;
+document.getElementById("prev").onclick=prev;
+dotEls.forEach(d=>d.onclick=()=>go(+d.dataset.i));
+window.addEventListener("keydown",e=>{
+  if(["ArrowRight","ArrowDown"," ","PageDown","Enter"].includes(e.key)){e.preventDefault();next();}
+  else if(["ArrowLeft","ArrowUp","PageUp","Backspace"].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==="Home")go(0); else if(e.key==="End")go(secs.length-1);
+});
+// click halves of the stage to page (ignore clicks on the nav bar)
+document.getElementById("stage").addEventListener("click",e=>{
+  if(e.target.closest("#nav"))return;
+  (e.clientX > window.innerWidth/2) ? next() : prev();
+});
+// touch swipe
+let tx=null;
+addEventListener("touchstart",e=>tx=e.changedTouches[0].clientX,{passive:true});
+addEventListener("touchend",e=>{
+  if(tx===null)return; const dx=e.changedTouches[0].clientX-tx;
+  if(Math.abs(dx)>50){ dx<0?next():prev(); } tx=null;});
+
+go(0);
+</script>
+</body>
+</html>
