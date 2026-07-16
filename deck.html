@@ -264,11 +264,10 @@
   /* IMPACT — glider arcs in from the left and dives into the bullseye */
   .slide.active .glideI{animation:glideI 1.5s var(--ease) .5s forwards;}
   @keyframes glideI{
-    0%  {opacity:0; transform:translate(-204px,-18px) rotate(-50deg) scale(.7);}
-    12% {opacity:1; transform:translate(-204px,-18px) rotate(-50deg) scale(1);}
-    55% {transform:translate(-105px,-80px) rotate(8deg);}
-    88% {transform:translate(-28px,-18px) rotate(40deg);}
-    100%{opacity:1; transform:translate(0,0) rotate(54deg) scale(.9);}
+    0%  {opacity:0; transform:translate(-78px,-50px) rotate(-58deg) scale(.6);}
+    14% {opacity:1; transform:translate(-78px,-50px) rotate(-58deg) scale(1);}
+    55% {transform:translate(-34px,-66px) rotate(-2deg);}
+    100%{opacity:1; transform:translate(0,0) rotate(58deg) scale(.9);}
   }
   /* amber shock-ripple when the glider strikes the zone */
   .ripple{opacity:0; transform-box:fill-box; transform-origin:center;}
@@ -402,8 +401,9 @@ function emblem(size){
 }
 
 // Holo-figure (articulated neon mannequin) in a given pose.
-// pose: 'build' | 'launch' | 'follow'
-function figure(pose){
+// pose: 'build' | 'launch' | 'follow'.  Optional `xform` repositions/scales the
+// whole figure within the 0..300 box (used on IMPACT to clear the target).
+function figure(pose, xform=""){
   // joint coordinates in a 0..300 box
   const P={
     build:{ // both hands forward at bench, head down slightly
@@ -431,7 +431,7 @@ function figure(pose){
     <defs><filter id="fg-${pose}" x="-40%" y="-40%" width="180%" height="180%">
       <feGaussianBlur stdDeviation="3" result="b"/><feMerge>
       <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <g filter="url(#fg-${pose})" fill="none">
+    <g filter="url(#fg-${pose})" fill="none"${xform ? ` transform="${xform}"` : ""}>
       <!-- spine + limbs -->
       ${bone(P.neck,P.hip,11,.05)}
       ${bone(P.neck,P.shL,8,.1)}${bone(P.shL,P.elL,8,.18)}${bone(P.elL,P.haL,7,.26)}
@@ -585,7 +585,7 @@ function stageLaunch(){
 
 // 6 — IMPACT stage: arc completes into target, rings light, amber ripple (0..300 space)
 function stageImpact(){
-  return `${figure("follow")}
+  return `${figure("follow", "translate(-76,12) scale(0.9)")}
   <svg viewBox="0 0 300 300" aria-hidden="true">
     <defs><filter id="gi" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="2.8" result="b"/><feMerge>
@@ -594,9 +594,9 @@ function stageImpact(){
         <stop offset="0%" stop-color="var(--amberLt)" stop-opacity=".9"/>
         <stop offset="60%" stop-color="var(--amber)" stop-opacity=".25"/>
         <stop offset="100%" stop-color="var(--amber)" stop-opacity="0"/></radialGradient></defs>
-    <!-- flight arc into the zone (ends at target centre 228,168) -->
-    <path d="M24 150 Q120 18 228 168" fill="none" stroke="var(--holo)" stroke-width="2.4"
-      stroke-dasharray="2 9" filter="url(#gi)" class="draw" style="--len:380; opacity:.8"/>
+    <!-- flight arc: follow-through hand -> target (stays clear of the figure) -->
+    <path d="M150 118 Q198 48 226 164" fill="none" stroke="var(--holo)" stroke-width="2.4"
+      stroke-dasharray="2 9" filter="url(#gi)" class="draw" style="--len:180; opacity:.8"/>
     <!-- target: concentric rings, right side, lighting up in sequence -->
     <g filter="url(#gi)" transform="translate(228,168)">
       <circle r="60" fill="url(#hit)" class="fadein" style="animation-delay:1.15s"/>
@@ -614,8 +614,8 @@ function stageImpact(){
     </g>
     <!-- glider (amber) flying along the arc into the bullseye (ends at 228,168) -->
     <g transform="translate(228,168)">${gliderImg("glideI", 72)}</g>
-    <text x="228" y="252" fill="var(--amber)" font-family="var(--mono)" font-size="12"
-      font-weight="700" text-anchor="middle" letter-spacing="2" class="fadein"
+    <text x="196" y="250" fill="var(--amber)" font-family="var(--mono)" font-size="11"
+      font-weight="700" text-anchor="middle" letter-spacing="1.4" class="fadein"
       style="animation-delay:1.55s">RESCUE ZONE ● SECURED</text>
   </svg>`;
 }
